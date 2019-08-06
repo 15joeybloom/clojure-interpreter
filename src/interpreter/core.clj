@@ -24,7 +24,6 @@
       result
       (first result))))
 
-
 (prn (insta/parses clojure-instaparser "nil"))
 (prn (insta/parses clojure-instaparser "()"))
 (prn (insta/parses clojure-instaparser " 1"))
@@ -65,7 +64,7 @@
   ([t] (second (my-eval {} t)))
   ([env t]
    (cond
-     (#{nil true false} t) [env t]
+     (contains? #{nil true false} t) [env t]
      (number? t) [env t]
      (symbol? t) (if (contains? env t)
                    [env (env t)]
@@ -87,12 +86,17 @@
         hiccup->lisp
         parse-clojure))
 
+(interpret-clojure "true")
+(interpret-clojure "false")
+(interpret-clojure "nil")
+(interpret-clojure "12")
+(interpret-clojure "(if false 1 2)")
 (interpret-clojure "(if true 2 3)")
 (interpret-clojure "(let-one x 3 (let-one x 4 x))")
 
 
 ;; Exercises:
-
+;;
 ;; - Keywords
 ;; - Strings
 ;; - Vectors
