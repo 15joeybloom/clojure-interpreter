@@ -1,7 +1,9 @@
 (ns interpreter.core
-  (:require [instaparse.core :as insta]
+  (:require [clojure.pprint]
             [clojure.string :as str]
-            [slingshot.slingshot :refer [throw+]]))
+            [instaparse.core :as insta]
+            [slingshot.slingshot :refer [throw+]])
+  (:refer-clojure :exclude [eval]))
 
 (defn trace [x]
   (clojure.pprint/pprint x)
@@ -48,38 +50,38 @@
 
 (hiccup->lisp (parse-clojure "(+ 12 (inc 6) (if true 7 8))"))
 
-(defn my-eval-syntax-quote [evalfn env level exp]
+(defn eval-syntax-quote [evalfn env level exp]
   (if (list? exp)
     (let [[f arg] exp]
       (cond
         (= f 'unquote)
         (case level
           0 (evalfn env arg)
-          (let [[env' result] (my-eval-syntax-quote evalfn env (dec level) arg)]
+          (let [[env' result] (eval-syntax-quote evalfn env (dec level) arg)]
             [env' (list 'unquote result)]))
 
         (= f 'syntax-quote)
-        (let [[env' result] (my-eval-syntax-quote evalfn env (inc level) arg)]
+        (let [[env' result] (eval-syntax-quote evalfn env (inc level) arg)]
           [env' (list 'syntax-quote result)])
 
         :else
         (let [[env' result-vec]
               (reduce (fn [[before-env results] sub-exp]
                         (let [[after-env result]
-                              (my-eval-syntax-quote evalfn env level sub-exp)]
+                              (eval-syntax-quote evalfn env level sub-exp)]
                           [after-env (conj results result)]))
                       [env []]
                       exp)]
           [env' (apply list result-vec)])))
     [env exp]))
 
-(defn my-eval-list [evalfn env [f & args :as list-exp]]
+(defn eval-list [evalfn env [f & args :as list-exp]]
   (cond
     (empty? list-exp) list-exp
-    (= f 'quote) (first args)
+    (= f 'quote) [env (first args)]
     (= f 'unquote) (throw+ {:type :unquote-not-in-syntax-quote
                             :unquoted-expression list-exp})
-    (= f 'syntax-quote) (my-eval-syntax-quote evalfn env 0 (first args))
+    (= f 'syntax-quote) (eval-syntax-quote evalfn env 0 (first args))
     (= f 'if) (let [[condition then else] args
                     [env' result] (evalfn env condition)]
                 (evalfn env' (if result then else)))
@@ -96,8 +98,8 @@
 (def runtime (construct-syms cons list first next rest
                              + - * / mod rem quot))
 
-(defn my-eval
-  ([t] (second (my-eval runtime t)))
+(defn eval
+  ([t] (second (eval runtime t)))
   ([env t]
    (cond
      (contains? #{nil true false} t) [env t]
@@ -107,7 +109,7 @@
                    (throw+ {:type :unable-to-resolve-symbol
                             :env env
                             :symbol t}))
-     (list? t) (my-eval-list my-eval env t))))
+     (list? t) (eval-list eval env t))))
 
 ;; Can't take value of a macro: #'clojure.core/let
 
@@ -118,7 +120,7 @@
       if)))
 
 (def interpret-clojure
-  (comp my-eval
+  (comp eval
         hiccup->lisp
         parse-clojure))
 
@@ -150,3 +152,5 @@
 ;; - Vectors
 ;; - Maps
 ;; - Destructuring
+;;
+;; - Write a REPL
