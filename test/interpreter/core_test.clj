@@ -49,3 +49,26 @@
   (t -1 "(quot (- 5) 3)")
   (t 1 "(mod (- 5) 3)")
   (t -2 "(rem (- 5) 3)"))
+
+(deftest fn-tests
+  (t 2 "((fn (x) x) 2)")
+  (t 3 "((fn (x) 3) 2)")
+  (t '(2 2) "(let-one x 1 ((fn (x) (list x x)) 2))")
+  (t 7 "(let-one y 5 ((fn (x) (+ x y)) 2))")
+  (t '(1 2 3) "(let-one f (fn (x) (fn (y) (fn (z) (list x y z))))
+                 (((f 1) 2) 3))")
+  (is (thrown+? [:type :unable-to-resolve-symbol
+                 :symbol 'x]
+                (sut/interpret-clojure "(let-one f (fn (x) x)
+                                          (do (f 1)
+                                              x))")))
+  (pending "A not-so-anonymous function."
+   (t 120 "((fn fact (n) (if (> n 1) (* n (fact (- n 1))) 1)) 5)")))
+
+(defpending def-tests
+  ;; This is unlike clojure. Clojure would complain about unable to resolve
+  ;; symbol y. But in our little toy lisp here, we can define y after f so long
+  ;; as we haven't called f yet.
+  (t 3 "(def f (fn (x) y))
+        (def y 3)
+        (f 1)"))

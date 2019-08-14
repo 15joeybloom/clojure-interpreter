@@ -15,7 +15,7 @@
         "<ESSES> = <WHITESPACE*>"
         "        | TOP (<WHITESPACE> TOP)*"
         "NUMBER = #'\\d+'"
-        "TOKEN = #'[a-zA-Z-_+*]+'"
+        "TOKEN = #'[a-zA-Z-_+*><=]+'"
         "WHITESPACE = #'\\s'"]
        (str/join "\n")
        insta/parser))
@@ -96,15 +96,29 @@
     (= f 'do) (let [[stmt expr] args
                     [env'] (evalfn env stmt)]
                 (evalfn env' expr))
+    (= f 'fn) (let [[arg-name body] args]
+                ;; Really hard to truly emulate clojure here. For example,
+                ;; clojure will complain about unresolved symbol in (fn [y] z)
+                ;; if z is undefined in the environment. Here, we just capture
+                ;; the current environment and deal with unresolved symbols
+                ;; later. This allows some funny tricks...
+                [env (list ::closure arg-name body env)])
     :else (let [[env' fresult] (evalfn env f)]
             (if-not (seq? fresult)
               (throw+ {:type :cannot-apply
                        :f fresult})
-              (let [[ftype fval] fresult]
-                (case ftype
-                  ::primitive-fn
-                  (let [[env'' evaluated-args] (mapM evalfn env' args)]
-                    [env'' (apply fval evaluated-args)])))))))
+              (case (first fresult)
+                ::primitive-fn
+                (let [fval (second fresult)
+                      [env'' evaluated-args] (mapM evalfn env' args)]
+                  [env'' (apply fval evaluated-args)])
+
+                ::closure
+                (let [[_ [arg-name] body captured-env] fresult
+                      [env'' evaluated-arg] (evalfn env' (first args))
+                      captured-env' (assoc captured-env arg-name evaluated-arg)
+                      [_ result] (evalfn captured-env' body)]
+                  [env'' result]))))))
 
 (defmacro construct-syms [& syms]
   (into {} (for [s syms] `['~s (list ::primitive-fn ~s)])))
