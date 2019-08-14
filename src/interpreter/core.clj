@@ -124,7 +124,8 @@
   (into {} (for [s syms] `['~s (list ::primitive-fn ~s)])))
 
 (def runtime (merge (construct-syms cons list first next rest
-                                    + - * mod rem quot)
+                                    + - * mod rem quot
+                                    < > <= >= =)
                     {'divide (list ::primitive-fn /)}))
 
 (defn eval

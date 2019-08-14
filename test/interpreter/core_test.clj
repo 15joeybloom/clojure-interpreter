@@ -48,7 +48,13 @@
   (t 5 "(divide 80 16)")
   (t -1 "(quot (- 5) 3)")
   (t 1 "(mod (- 5) 3)")
-  (t -2 "(rem (- 5) 3)"))
+  (t -2 "(rem (- 5) 3)")
+  (t true "(= 1 1)")
+  (t false "(= 1 2)")
+  (t true "(< 1 2)")
+  (t false "(> 1 2)")
+  (t true "(<= 1 1)")
+  (t true "(>= 1 1)"))
 
 (deftest fn-tests
   (t 2 "((fn (x) x) 2)")
@@ -63,7 +69,7 @@
                                           (do (f 1)
                                               x))")))
   (pending "A not-so-anonymous function."
-   (t 120 "((fn fact (n) (if (> n 1) (* n (fact (- n 1))) 1)) 5)")))
+           (t 120 "((fn fact (n) (if (> n 1) (* n (fact (- n 1))) 1)) 5)")))
 
 (defpending def-tests
   ;; This is unlike clojure. Clojure would complain about unable to resolve
