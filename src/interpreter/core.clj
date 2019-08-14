@@ -15,7 +15,7 @@
         "<ESSES> = <WHITESPACE*>"
         "        | TOP (<WHITESPACE> TOP)*"
         "NUMBER = #'\\d+'"
-        "TOKEN = #'[a-zA-Z-_+]+'"
+        "TOKEN = #'[a-zA-Z-_+*]+'"
         "WHITESPACE = #'\\s'"]
        (str/join "\n")
        insta/parser))
@@ -107,10 +107,11 @@
                     [env'' (apply fval evaluated-args)])))))))
 
 (defmacro construct-syms [& syms]
-  (into {} (for [s syms] [`'~s ``(::primitive-fn ~~s)])))
+  (into {} (for [s syms] `['~s (list ::primitive-fn ~s)])))
 
-(def runtime (construct-syms cons list first next rest
-                             + - * / mod rem quot))
+(def runtime (merge (construct-syms cons list first next rest
+                                    + - * mod rem quot)
+                    {'divide (list ::primitive-fn /)}))
 
 (defn eval
   ([t] (second (eval runtime t)))

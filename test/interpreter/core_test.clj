@@ -40,5 +40,12 @@
   (t (list 5 10)
      "(let-one x 5 (let-one y 10 (syntax-quote ((unquote x) (unquote y)))))"))
 
-(deftest math
-  (t 2 "(+ 1 1)"))
+(deftest math-tests
+  (t 2 "(+ 1 1)")
+  (t 2 "(- 3 1)")
+  (t -1 "(- 1)")
+  (t 60 "(* 3 4 5)")
+  (t 5 "(divide 80 16)")
+  (t -1 "(quot (- 5) 3)")
+  (t 1 "(mod (- 5) 3)")
+  (t -2 "(rem (- 5) 3)"))
