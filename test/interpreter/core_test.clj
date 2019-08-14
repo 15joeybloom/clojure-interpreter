@@ -14,13 +14,13 @@
 (defn t [expected pgm]
   (is (= expected (sut/interpret-clojure pgm))))
 
-(deftest literals
+(deftest literal-tests
   (t true "true")
   (t false "false")
   (t nil "nil")
   (t 0 "0"))
 
-(deftest quotes
+(deftest quote-tests
   (t 's "(quote s)")
   (t 1 "(quote 1)")
   (pending "single-quote"
@@ -36,9 +36,9 @@
   (t (list 'syntax-quote (list '+ (list 'unquote 5) 1))
      "(syntax-quote (syntax-quote (+ (unquote (unquote 5)) 1)))"))
 
-(deftest let
+(deftest let-tests
   (t (list 5 10)
      "(let-one x 5 (let-one y 10 (syntax-quote ((unquote x) (unquote y)))))"))
 
-(defpending math
+(deftest math
   (t 2 "(+ 1 1)"))

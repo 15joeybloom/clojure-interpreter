@@ -50,30 +50,35 @@
 
 (hiccup->lisp (parse-clojure "(+ 12 (inc 6) (if true 7 8))"))
 
-(defn eval-syntax-quote [evalfn env level exp]
-  (if (list? exp)
+(defn mapM
+  "Maps `f` over `exps`, threading an environment `env` forwards through the
+  computation. `f` takes an environment and an expression and returns a vector
+  of an environment and an expression"
+  [f env exps]
+  (let [[env' result-vec]
+        (reduce (fn [[before-env results] sub-exp]
+                  (let [[after-env result] (f env sub-exp)]
+                    [after-env (conj results result)]))
+                [env []]
+                exps)]
+    [env' (apply list result-vec)]))
+
+(defn eval-syntax-quote [evalfn level env exp]
+  (if-not (seq? exp)
+    [env exp]
     (let [[f arg] exp]
       (cond
         (= f 'unquote)
         (case level
           0 (evalfn env arg)
-          (let [[env' result] (eval-syntax-quote evalfn env (dec level) arg)]
+          (let [[env' result] (eval-syntax-quote evalfn (dec level) env arg)]
             [env' (list 'unquote result)]))
 
         (= f 'syntax-quote)
-        (let [[env' result] (eval-syntax-quote evalfn env (inc level) arg)]
+        (let [[env' result] (eval-syntax-quote evalfn (inc level) env arg)]
           [env' (list 'syntax-quote result)])
 
-        :else
-        (let [[env' result-vec]
-              (reduce (fn [[before-env results] sub-exp]
-                        (let [[after-env result]
-                              (eval-syntax-quote evalfn env level sub-exp)]
-                          [after-env (conj results result)]))
-                      [env []]
-                      exp)]
-          [env' (apply list result-vec)])))
-    [env exp]))
+        :else (mapM (partial eval-syntax-quote evalfn level) env exp)))))
 
 (defn eval-list [evalfn env [f & args :as list-exp]]
   (cond
@@ -81,7 +86,7 @@
     (= f 'quote) [env (first args)]
     (= f 'unquote) (throw+ {:type :unquote-not-in-syntax-quote
                             :unquoted-expression list-exp})
-    (= f 'syntax-quote) (eval-syntax-quote evalfn env 0 (first args))
+    (= f 'syntax-quote) (eval-syntax-quote evalfn 0 env (first args))
     (= f 'if) (let [[condition then else] args
                     [env' result] (evalfn env condition)]
                 (evalfn env' (if result then else)))
@@ -90,10 +95,19 @@
                      (evalfn (assoc env' name_ result) body))
     (= f 'do) (let [[stmt expr] args
                     [env'] (evalfn env stmt)]
-                (evalfn env' expr))))
+                (evalfn env' expr))
+    :else (let [[env' fresult] (evalfn env f)]
+            (if-not (seq? fresult)
+              (throw+ {:type :cannot-apply
+                       :f fresult})
+              (let [[ftype fval] fresult]
+                (case ftype
+                  ::primitive-fn
+                  (let [[env'' evaluated-args] (mapM evalfn env' args)]
+                    [env'' (apply fval evaluated-args)])))))))
 
 (defmacro construct-syms [& syms]
-  (into {} (for [s syms] [`'~s (list :primitive-fn s)])))
+  (into {} (for [s syms] [`'~s ``(::primitive-fn ~~s)])))
 
 (def runtime (construct-syms cons list first next rest
                              + - * / mod rem quot))
@@ -109,7 +123,7 @@
                    (throw+ {:type :unable-to-resolve-symbol
                             :env env
                             :symbol t}))
-     (list? t) (eval-list eval env t))))
+     (seq? t) (eval-list eval env t))))
 
 ;; Can't take value of a macro: #'clojure.core/let
 
