@@ -200,14 +200,18 @@
 
 ;; Exercises:
 ;;
-;; - Make fn use [] for its arguments
 ;; - Functions of arity other than one
-;; - Variable arity functions
+;; - Macros of arity other than one
+;; - Function overloading (multiple arities)
+;; - Make fn and defmacro use [] for their arguments
 ;; - Keywords
 ;; - Strings
 ;; - Vectors
 ;; - Maps
 ;; - Destructuring
+;; - Varargs, i.e. (fn [arg & args] (body things here))
+;; - Static analysis for symbol resolution (i.e. (fn [y] z) should blow up
+;;   because z is undefined)
 ;; - loop recur (probably really hard to even get correct, to say nothing of
 ;;   actually optimizing the tail call.)
 ;;
