@@ -107,7 +107,10 @@
 
 (deftest defmacro-tests
   (t 1 "(defmacro a (x) 1) (a)")
-  (let [when-macro "(defmacro when (args) (syntax-quote (if (unquote (first args)) (unquote (first (rest args))) nil)))"]
+  (let [when-macro (str '(defmacro when (args)
+                           (syntax-quote (if (unquote (first args))
+                                           (unquote (first (rest args)))
+                                           nil))))]
     (t 7 (str/join "\n" [when-macro
                          "(let-one x 4 (when ((> x 3) 7)))"]))
     (t nil (str/join "\n" [when-macro
