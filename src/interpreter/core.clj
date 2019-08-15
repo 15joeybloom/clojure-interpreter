@@ -117,7 +117,7 @@
                 ::primitive-fn
                 (let [fval (second fresult)
                       [env'' evaluated-args] (mapM evalfn env' args)]
-                  [env'' (apply fval evaluated-args)])
+                  (apply fval (cons env'' evaluated-args)))
 
                 ::closure
                 (let [[_ [arg-name] body captured-env] fresult
@@ -125,9 +125,6 @@
                       captured-env' (assoc captured-env arg-name evaluated-arg)
                       [_ result] (evalfn captured-env' body)]
                   [env'' result]))))))
-
-(defmacro construct-syms [& syms]
-  (into {} (for [s syms] `['~s (list ::primitive-fn ~s)])))
 
 (defn eval
   [env t]
@@ -149,10 +146,19 @@
       (recur (+ if recur) (inc recur))
       if)))
 
-(def runtime (merge (construct-syms cons list first next rest
-                                    + - * mod rem quot
-                                    < > <= >= =)
-                    {'divide (list ::primitive-fn /)}))
+(defmacro construct-syms [& syms]
+  (into {} (for [s syms]
+             `['~s
+               (list ::primitive-fn
+                     (fn [env# & args#]
+                       [env# (apply ~s args#)]))])))
+
+(def runtime (merge
+              (construct-syms cons list first next rest
+                              + - * mod rem quot
+                              < > <= >= =)
+              {'divide (list ::primitive-fn (fn [env & args] [env (apply / args)]))
+               'eval (list ::primitive-fn eval)}))
 
 (defn interpret-clojure [program]
   (->> program

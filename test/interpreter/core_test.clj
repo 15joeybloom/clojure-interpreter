@@ -25,7 +25,7 @@
   (t 's "(quote s)")
   (t 1 "(quote 1)")
   (pending "single-quote"
-           (t (list 1 2 3) "'(1 2 3)"))
+    (t (list 1 2 3) "'(1 2 3)"))
   (t ''a "(quote (quote a))")
   (t (list 1 2) "(let-one x 1
                    (let-one y 2
@@ -37,12 +37,23 @@
   (t (list 'syntax-quote (list '+ (list 'unquote 5) 1))
      "(syntax-quote (syntax-quote (+ (unquote (unquote 5)) 1)))"))
 
+(deftest eval-tests
+  (t 1 "(def x 1) (eval (quote x))")
+  (t 5 "(eval (eval (let-one a 4 (syntax-quote (syntax-quote (+ (unquote (unquote a)) 1))))))"))
+
 (deftest let-tests
   (t (list 5 10)
      "(let-one x 5 (let-one y 10 (syntax-quote ((unquote x) (unquote y)))))"))
 
 (deftest do-tests
   (t 5 "(do 1 2 3 4 5)"))
+
+(deftest if-tests
+  (t 8 "(if true 8 9)")
+  (t 9 "(if false 8 9)")
+  (t 1 "(if true (def x 1) (def y 1)) x")
+  (is (thrown+? [:type :unable-to-resolve-symbol]
+                (sut/interpret-clojure "(if false (def x 1) (def y 1)) x"))))
 
 (deftest math-tests
   (t 2 "(+ 1 1)")
@@ -65,6 +76,7 @@
   (t 3 "((fn (x) 3) 2)")
   (t '(2 2) "(let-one x 1 ((fn (x) (list x x)) 2))")
   (t 7 "(let-one y 5 ((fn (x) (+ x y)) 2))")
+  (t 7 "((let-one y 5 (fn (x) (+ x y))) 2)")
   (t '(1 2 3) "(let-one f (fn (x) (fn (y) (fn (z) (list x y z))))
                  (((f 1) 2) 3))")
   (is (thrown+? [:type :unable-to-resolve-symbol
@@ -73,7 +85,7 @@
                                           (do (f 1)
                                               x))")))
   (pending "A not-so-anonymous function."
-           (t 120 "((fn fact (n) (if (> n 1) (* n (fact (- n 1))) 1)) 5)")))
+    (t 120 "((fn fact (n) (if (> n 1) (* n (fact (- n 1))) 1)) 5)")))
 
 (deftest def-tests
   (t 2 "(def x 2) x")
