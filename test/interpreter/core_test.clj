@@ -1,6 +1,7 @@
 (ns interpreter.core-test
   (:require [interpreter.core :as sut]
             [slingshot.test]
+            [clojure.string :as str]
             [clojure.test :refer [deftest testing is]]))
 
 (defmacro defpending [name & body]
@@ -40,6 +41,9 @@
   (t (list 5 10)
      "(let-one x 5 (let-one y 10 (syntax-quote ((unquote x) (unquote y)))))"))
 
+(deftest do-tests
+  (t 5 "(do 1 2 3 4 5)"))
+
 (deftest math-tests
   (t 2 "(+ 1 1)")
   (t 2 "(- 3 1)")
@@ -71,10 +75,26 @@
   (pending "A not-so-anonymous function."
            (t 120 "((fn fact (n) (if (> n 1) (* n (fact (- n 1))) 1)) 5)")))
 
-(defpending def-tests
-  ;; This is unlike clojure. Clojure would complain about unable to resolve
-  ;; symbol y. But in our little toy lisp here, we can define y after f so long
-  ;; as we haven't called f yet.
-  (t 3 "(def f (fn (x) y))
-        (def y 3)
-        (f 1)"))
+(deftest def-tests
+  (t 2 "(def x 2) x")
+  (t 3 "(do (def x 1) (def y 2) (+ x y))")
+  (t 120 "(def fact (fn (f) (fn (n) (if (> n 1) (* n ((f f) (- n 1))) 1)))) ((fact fact) 5)")
+  (t 120 (str/join " "
+                   ['(def y (fn (f) ((fn (x) (f (fn (arg) ((x x) arg))))
+                                     (fn (x) (f (fn (arg) ((x x) arg)))))))
+                    '(def fact (y (fn (f) (fn (n) (if (> n 1) (* n (f (- n 1))) 1)))))
+                    '(fact 5)]))
+
+  (pending "weird"
+    ;; This is unlike clojure. Clojure would complain about unable to resolve
+    ;; symbol y. But in our little toy lisp here, we can define y after f so
+    ;; long as we haven't called f yet.
+    (t 3 "(def f (fn (x) y)) (def y 3) (f 1)")))
+
+(comment
+  (def y (fn [f] ((fn [x] (f (fn [arg] ((x x) arg))))
+                  (fn [x] (f (fn [arg] ((x x) arg)))))))
+  (def fact (y (fn [f] (fn [n] (if (> n 1) (* n (f (- n 1))) 1)))))
+
+  (fact 5)
+  )

@@ -10,10 +10,10 @@
   x)
 
 (def clojure-instaparser
-  (->> ["<TOP> = <WHITESPACE*> (SEXP | NUMBER | TOKEN) <WHITESPACE*>"
-        "SEXP = <'('> ESSES <')'>"
-        "<ESSES> = <WHITESPACE*>"
-        "        | TOP (<WHITESPACE> TOP)*"
+  (->> ["<FORMS> = <WHITESPACE*>"
+        "        | FORM (<WHITESPACE> FORM)*"
+        "SEXP = <'('> FORMS <')'>"
+        "<FORM> = <WHITESPACE*> (SEXP | NUMBER | TOKEN) <WHITESPACE*>"
         "NUMBER = #'\\d+'"
         "TOKEN = #'[a-zA-Z-_+*><=]+'"
         "WHITESPACE = #'\\s'"]
@@ -23,20 +23,19 @@
 (defn parse-clojure [t]
   (let [result (insta/parse clojure-instaparser t)]
     (if (insta/failure? result)
-      result
-      (first result))))
+      (throw+ result)
+      result)))
 
-(prn (insta/parses clojure-instaparser "nil"))
-(prn (insta/parses clojure-instaparser "()"))
-(prn (insta/parses clojure-instaparser " 1"))
-(prn (insta/parses clojure-instaparser "( )"))
-(prn (insta/parses clojure-instaparser "(\t1\n#t)"))
-(prn (insta/parses clojure-instaparser "(12)"))
-(prn (insta/parses clojure-instaparser "(1 2)"))
-(type (insta/parse clojure-instaparser "() ()"))
+(insta/parses clojure-instaparser "nil")
+(insta/parses clojure-instaparser "()")
+(insta/parses clojure-instaparser " 1")
+(insta/parses clojure-instaparser "( )")
+(insta/parses clojure-instaparser "(\t1\n#t)")
+(insta/parses clojure-instaparser "(12)")
+(insta/parses clojure-instaparser "(1 2)")
+(insta/parse clojure-instaparser "() ()")
 (clojure.pprint/pprint (parse-clojure "(+ (+ 1 2) (+ 3 4))"))
-(println)
-(parse-clojure "(+ 1a -nil)")
+(comment (parse-clojure "(+ 1a -nil)"))
 
 (defn hiccup->lisp [[type_ & [arg :as rest]]]
   (case type_
@@ -48,7 +47,7 @@
              "false" false
              (symbol arg))))
 
-(hiccup->lisp (parse-clojure "(+ 12 (inc 6) (if true 7 8))"))
+(map hiccup->lisp (parse-clojure "(+ 12 (inc 6) (if true 7 8))"))
 
 (defn mapM
   "Maps `f` over `exps`, threading an environment `env` forwards through the
@@ -80,6 +79,12 @@
 
         :else (mapM (partial eval-syntax-quote evalfn level) env exp)))))
 
+(defn eval-forms [evalfn env forms]
+  (reduce (fn [[env'] form]
+            (evalfn env' form))
+          [env]
+          forms))
+
 (defn eval-list [evalfn env [f & args :as list-exp]]
   (cond
     (empty? list-exp) list-exp
@@ -93,16 +98,17 @@
     (= f 'let-one) (let [[name_ expr body] args
                          [env' result] (evalfn env expr)]
                      (evalfn (assoc env' name_ result) body))
-    (= f 'do) (let [[stmt expr] args
-                    [env'] (evalfn env stmt)]
-                (evalfn env' expr))
-    (= f 'fn) (let [[arg-name body] args]
+    (= f 'do) (eval-forms evalfn env args)
+    (= f 'fn) (let [[parameter-list body] args]
                 ;; Really hard to truly emulate clojure here. For example,
                 ;; clojure will complain about unresolved symbol in (fn [y] z)
                 ;; if z is undefined in the environment. Here, we just capture
                 ;; the current environment and deal with unresolved symbols
                 ;; later. This allows some funny tricks...
-                [env (list ::closure arg-name body env)])
+                [env (list ::closure parameter-list body env)])
+    (= f 'def) (let [[name_ expr] args
+                     [env' result] (evalfn env expr)]
+                 [(assoc env' (symbol name_) result) nil])
     :else (let [[env' fresult] (evalfn env f)]
             (if-not (seq? fresult)
               (throw+ {:type :cannot-apply
@@ -123,23 +129,17 @@
 (defmacro construct-syms [& syms]
   (into {} (for [s syms] `['~s (list ::primitive-fn ~s)])))
 
-(def runtime (merge (construct-syms cons list first next rest
-                                    + - * mod rem quot
-                                    < > <= >= =)
-                    {'divide (list ::primitive-fn /)}))
-
 (defn eval
-  ([t] (second (eval runtime t)))
-  ([env t]
-   (cond
-     (contains? #{nil true false} t) [env t]
-     (number? t) [env t]
-     (symbol? t) (if (contains? env t)
-                   [env (env t)]
-                   (throw+ {:type :unable-to-resolve-symbol
-                            :env env
-                            :symbol t}))
-     (seq? t) (eval-list eval env t))))
+  [env t]
+  (cond
+    (contains? #{nil true false} t) [env t]
+    (number? t) [env t]
+    (symbol? t) (if (contains? env t)
+                  [env (env t)]
+                  (throw+ {:type :unable-to-resolve-symbol
+                           :env env
+                           :symbol t}))
+    (seq? t) (eval-list eval env t)))
 
 ;; Can't take value of a macro: #'clojure.core/let
 
@@ -149,10 +149,17 @@
       (recur (+ if recur) (inc recur))
       if)))
 
-(def interpret-clojure
-  (comp eval
-        hiccup->lisp
-        parse-clojure))
+(def runtime (merge (construct-syms cons list first next rest
+                                    + - * mod rem quot
+                                    < > <= >= =)
+                    {'divide (list ::primitive-fn /)}))
+
+(defn interpret-clojure [program]
+  (->> program
+       parse-clojure
+       (map hiccup->lisp)
+       (eval-forms eval runtime)
+       second))
 
 (interpret-clojure "true")
 (interpret-clojure "false")
@@ -177,10 +184,15 @@
 
 ;; Exercises:
 ;;
+;; - Make fn use [] for its arguments
+;; - Functions of arity other than one
+;; - Variable arity functions
 ;; - Keywords
 ;; - Strings
 ;; - Vectors
 ;; - Maps
 ;; - Destructuring
+;; - loop recur (probably really hard to even get correct, to say nothing of
+;;   actually optimizing the tail call.)
 ;;
 ;; - Write a REPL
