@@ -79,7 +79,9 @@
 
         :else (mapM (partial eval-syntax-quote evalfn level) env exp)))))
 
-(defn eval-forms [evalfn env forms]
+(defn eval-forms
+  "Eval a sequence of forms in `env`"
+  [evalfn env forms]
   (reduce (fn [[env'] form]
             (evalfn env' form))
           [env]
@@ -108,7 +110,9 @@
                 [env (list ::closure parameter-list body env)])
     (= f 'def) (let [[name_ expr] args
                      [env' result] (evalfn env expr)]
-                 [(assoc env' (symbol name_) result) nil])
+                 [(assoc env' name_ result) nil])
+    (= f 'defmacro) (let [[name_ parameter-list expr] args]
+                      [(assoc env name_ (list ::macro parameter-list expr))])
     :else (let [[env' fresult] (evalfn env f)]
             (if-not (seq? fresult)
               (throw+ {:type :cannot-apply
@@ -124,7 +128,13 @@
                       [env'' evaluated-arg] (evalfn env' (first args))
                       captured-env' (assoc captured-env arg-name evaluated-arg)
                       [_ result] (evalfn captured-env' body)]
-                  [env'' result]))))))
+                  [env'' result])
+
+                ::macro
+                (let [[_ [arg-name] body] fresult
+                      [env' result] (evalfn (assoc env arg-name (first args))
+                                            body)]
+                  (evalfn env' result)))))))
 
 (defn eval
   [env t]

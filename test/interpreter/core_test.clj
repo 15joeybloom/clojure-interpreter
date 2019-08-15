@@ -43,7 +43,10 @@
 
 (deftest let-tests
   (t (list 5 10)
-     "(let-one x 5 (let-one y 10 (syntax-quote ((unquote x) (unquote y)))))"))
+     "(let-one x 5 (let-one y 10 (syntax-quote ((unquote x) (unquote y)))))")
+  (pending "Haha, oops! symbols escape their let bindings."
+    (is (thrown+? [:type :unable-to-resolve-symbol]
+                  (sut/interpret-clojure "(do (let-one x 5 x) x)")))))
 
 (deftest do-tests
   (t 5 "(do 1 2 3 4 5)"))
@@ -96,12 +99,33 @@
                                      (fn (x) (f (fn (arg) ((x x) arg)))))))
                     '(def fact (y (fn (f) (fn (n) (if (> n 1) (* n (f (- n 1))) 1)))))
                     '(fact 5)]))
-
   (pending "weird"
     ;; This is unlike clojure. Clojure would complain about unable to resolve
     ;; symbol y. But in our little toy lisp here, we can define y after f so
     ;; long as we haven't called f yet.
     (t 3 "(def f (fn (x) y)) (def y 3) (f 1)")))
+
+(deftest defmacro-tests
+  (t 1 "(defmacro a (x) 1) (a)")
+  (let [when-macro "(defmacro when (args) (syntax-quote (if (unquote (first args)) (unquote (first (rest args))) nil)))"]
+    (t 7 (str/join "\n" [when-macro
+                         "(let-one x 4 (when ((> x 3) 7)))"]))
+    (t nil (str/join "\n" [when-macro
+                           "(let-one x 3 (when ((> x 3) 7)))"]))
+    (let [defs
+          (str/join "\n"
+                    [when-macro
+                     '(defmacro cond (clauses)
+                        (when (clauses
+                               (list (quote if) (first clauses)
+                                     (if (next clauses)
+                                       (first (next clauses))
+                                       nil)
+                                     (list (quote cond)
+                                           (next (next clauses)))))))])]
+      (t 1 (str defs " (cond (true 1 true 2))"))
+      (t 2 (str defs " (cond (false 1 true 2))"))
+      (t nil (str defs " (cond (false 1 false 2))")))))
 
 (comment
   (def y (fn [f] ((fn [x] (f (fn [arg] ((x x) arg))))
