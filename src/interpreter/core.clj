@@ -188,7 +188,8 @@
               (construct-syms cons list first next rest
                               + - * mod rem quot
                               < > <= >= =)
-              {'divide (list ::primitive-fn (fn [_ globals & args] [globals (apply / args)]))
+              {'divide (list ::primitive-fn
+                             (fn [_ globals & args] [globals (apply / args)]))
                'eval (list ::primitive-fn eval)}))
 
 (defn interpret-clojure [program]
