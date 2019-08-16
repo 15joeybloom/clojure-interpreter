@@ -15,10 +15,12 @@
   (->> ["<FORMS> = <WHITESPACE*>"
         "        | FORM (<WHITESPACE> FORM)*"
         "SEXP = <'('> FORMS <')'>"
-        "<FORM> = <WHITESPACE*> (SEXP | NUMBER | TOKEN) <WHITESPACE*>"
+        "<FORM> = <WHITESPACE*> (SEXP | NUMBER | TOKEN | KEYWORD) <WHITESPACE*>"
         "NUMBER = #'\\d+'"
-        "TOKEN = #'[a-zA-Z-_+*><=]+'"
-        "WHITESPACE = #'\\s'"]
+        "TOKEN = WORD"
+        "<WORD> = #'[a-zA-Z-_+*><=]+'"
+        "WHITESPACE = #'\\s'"
+        "KEYWORD = <':'> WORD"]
        (str/join "\n")
        insta/parser))
 
@@ -37,6 +39,7 @@
   (insta/parses clojure-instaparser "(12)")
   (insta/parses clojure-instaparser "(1 2)")
   (insta/parse clojure-instaparser "() ()")
+  (insta/parse clojure-instaparser ":mykeyword")
   (clojure.pprint/pprint (parse-clojure "(+ (+ 1 2) (+ 3 4))"))
   (parse-clojure "(+ 1a -nil)") ;; error because of 1a
 
@@ -50,7 +53,8 @@
              "nil" nil
              "true" true
              "false" false
-             (symbol arg))))
+             (symbol arg))
+    :KEYWORD (list ::keyword (str arg))))
 
 (defn mapM
   "Maps `f` over `exps`, threading an environment `env` forwards through the
@@ -98,7 +102,7 @@
 
 (defn eval-list [evalfn locals globals [f & args :as list-exp]]
   (cond
-    (empty? list-exp) list-exp
+    (empty? list-exp) [globals list-exp]
     (= f 'quote) [globals (first args)]
     (= f 'unquote) (throw+ {:type :unquote-not-in-syntax-quote
                             :unquoted-expression list-exp})
@@ -175,6 +179,7 @@
                                      :symbol t
                                      :locals locals
                                      :globals globals}))
+    (= (first t) ::keyword) [globals t]
     (seq? t) (eval-list eval locals globals t)))
 
 (defmacro construct-syms [& syms]

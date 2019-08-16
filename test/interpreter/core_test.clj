@@ -19,13 +19,14 @@
   (t true "true")
   (t false "false")
   (t nil "nil")
-  (t 0 "0"))
+  (t 0 "0")
+  (t () "()"))
 
 (deftest quote-tests
   (t 's "(quote s)")
   (t 1 "(quote 1)")
   (pending "single-quote"
-    (t (list 1 2 3) "'(1 2 3)"))
+           (t (list 1 2 3) "'(1 2 3)"))
   (t ''a "(quote (quote a))")
   (t (list 1 2) "(let-one x 1
                    (let-one y 2
@@ -40,6 +41,9 @@
 (deftest eval-tests
   (t 1 "(def x 1) (eval (quote x))")
   (t 5 "(eval (eval (let-one a 4 (syntax-quote (syntax-quote (+ (unquote (unquote a)) 1))))))"))
+
+(deftest keyword-tests
+  (t '(:interpreter.core/keyword "mykeyword") ":mykeyword"))
 
 (deftest let-tests
   (t (list 5 10)
